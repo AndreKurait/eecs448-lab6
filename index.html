@@ -25,6 +25,18 @@ integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw
                 {{ todo.text }}
             </li>
         </ol>
+        <label for="stops">Stops:</label>
+        <input name="stops" v-model.number="numStops" type="number"><br>
+
+        <div v-for="busStop in filteredStops" class="card" style="width: 25rem;">
+            <div class="card-body">
+                <h5 class="card-title">{{busStop.name}}</h5>
+                <p class="card-text">{{busStop.description}}</p>
+                <p class="card-text">Distance: {{busStop.distance}} km</p>
+            </div>
+        </div>
+
+
     </div>
 
   <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
@@ -42,6 +54,29 @@ integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw
 
 
   <script>
+    function toRadians(degrees)
+    {
+        let pi = Math.PI;
+        return degrees * (pi/180);
+    }
+    
+    // Modified from https://www.movable-type.co.uk/scripts/latlong.html
+    function distance(lat1,lon1, lat2, lon2) {
+        console.log(lat2)
+        let R = 6371; // km
+        let φ1 = toRadians(lat1);
+        let φ2 = toRadians(lat2);
+        let Δφ = toRadians(lat2-lat1);
+        let Δλ = toRadians(lon2-lon1);
+
+        let a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+        let d = R * c;
+        return d;
+    }
   const app = new Vue({
     el: '#app',
     data: {
@@ -50,9 +85,57 @@ integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw
         { text: 'Learn JavaScript' },
         { text: 'Learn Vue' },
         { text: 'Build something awesome' }
-        ]
-    }
-  })
+        ],
+      stops: [],
+      numStops: 10,
+      locationLat: 0,
+      locationLon: 0,
+    },
+    created: function () {
+        fetch('https://utils.pauliankline.com/stops.json')
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(myJson) {
+            for (let busStop in myJson) {
+                app.stops.push(myJson[busStop]);
+            }
+            })
+        .then(function() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                app.locationLat = position.coords.latitude;
+                app.locationLon = position.coords.longitude;
+            });
+
+            if(app.locationLat != 0) {
+                for (let busStop in app.stops) {
+                        let d = distance(app.locationLat, app.locationLon , app.stops[busStop].lat, app.stops[busStop].lon); 
+                        app.stops[busStop].distance = d;
+                }
+            }
+            }
+
+            navigator.geolocation.watchPosition(function(position) {
+            app.locationLat = position.coords.latitude;
+            app.locationLon = position.coords.longitude;
+            for (let busStop in app.stops) {
+                let d = distance(app.locationLat, app.locationLon , app.stops[busStop].lat, app.stops[busStop].lon); 
+                app.stops[busStop].distance = d;
+            }
+
+            console.log("gps")
+            });
+            
+        });
+    },
+    computed: {
+        filteredStops: function () {
+            this.stops.sort(function(a, b){return a.distance - b.distance});
+            return this.stops.slice(0,this.numStops);
+        }
+  }
+  })   
   </script>
 
 </body>
